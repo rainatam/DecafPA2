@@ -3,36 +3,12 @@ package decaf.typecheck;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Stack;
+import java.util.HashSet;
 
-import com.sun.org.apache.bcel.internal.generic.BASTORE;
 import decaf.Driver;
 import decaf.Location;
+import decaf.error.*;
 import decaf.tree.Tree;
-import decaf.error.BadArgCountError;
-import decaf.error.BadArgTypeError;
-import decaf.error.BadArrElementError;
-import decaf.error.BadLengthArgError;
-import decaf.error.BadLengthError;
-import decaf.error.BadNewArrayLength;
-import decaf.error.BadPrintArgError;
-import decaf.error.BadPrintCompArgError;
-import decaf.error.BadReturnTypeError;
-import decaf.error.BadTestExpr;
-import decaf.error.BreakOutOfLoopError;
-import decaf.error.ClassNotFoundError;
-import decaf.error.DecafError;
-import decaf.error.FieldNotAccessError;
-import decaf.error.FieldNotFoundError;
-import decaf.error.IncompatBinOpError;
-import decaf.error.IncompatUnOpError;
-import decaf.error.NotArrayError;
-import decaf.error.NotClassError;
-import decaf.error.NotClassFieldError;
-import decaf.error.NotClassMethodError;
-import decaf.error.RefNonStaticError;
-import decaf.error.SubNotIntError;
-import decaf.error.ThisInStaticFuncError;
-import decaf.error.UndeclVarError;
 import decaf.frontend.Parser;
 import decaf.scope.ClassScope;
 import decaf.scope.FormalScope;
@@ -70,6 +46,10 @@ public class TypeCheck extends Tree.Visitor {
 	@Override
 	public void visitUnary(Tree.Unary expr) {
 		expr.expr.accept(this);
+		if(expr.expr.type.equal(BaseType.ERROR)) {
+		    expr.type = BaseType.ERROR;
+		    return;
+        }
 		if(expr.tag == Tree.NEG){
 			if (expr.expr.type.equal(BaseType.ERROR)
 					|| expr.expr.type.equal(BaseType.INT)) {
@@ -458,7 +438,7 @@ public class TypeCheck extends Tree.Visitor {
 	public void visitAssign(Tree.Assign assign) {
 		assign.left.accept(this);
 		assign.expr.accept(this);
-		System.out.println(assign.left.getLocation());
+		//System.out.println(assign.left.getLocation());
 		if (!assign.left.type.equal(BaseType.ERROR)
 				&& (assign.left.type.isFuncType() || !assign.expr.type
 						.compatible(assign.left.type))) {
@@ -615,7 +595,9 @@ public class TypeCheck extends Tree.Visitor {
 	private Type checkBinaryOp(Tree.Expr left, Tree.Expr right, int op, Location location) {
 		left.accept(this);
 		right.accept(this);
-
+        if(left.type.equal(BaseType.ERROR) || right.type.equal(BaseType.ERROR)) {
+            return BaseType.ERROR;
+        }
 		if (left.type.equal(BaseType.ERROR) || right.type.equal(BaseType.ERROR)) {
 			switch (op) {
 			case Tree.PLUS:
@@ -697,4 +679,57 @@ public class TypeCheck extends Tree.Visitor {
 		}
 	}
 
+    @Override
+    public void visitCase(Tree.Case caseExpr) {
+	    // rule 1
+	    caseExpr.expr.accept(this);
+	    if(!caseExpr.expr.type.equals(BaseType.INT)) {
+	        issueError(new IncompatCaseError(caseExpr.expr.getLocation(), caseExpr.expr.type.toString(), BaseType.INT.toString()));
+        }
+
+        caseExpr.dExpr.accept(this);
+        Type caseType = BaseType.NULL;
+	    Type defaultType = caseExpr.dExpr.type;
+	    Type returnType = defaultType;
+
+	    HashSet<Object> leftSet = new HashSet<Object>();
+        for (Tree.Expr aCaseExpr : caseExpr.aExprs) {
+           //aCaseExpr.accept(this);
+            //System.out.println(aCaseExpr.getLocation());
+            Tree.Expr left = ((Tree.ACaseExpr)aCaseExpr).left;
+            Tree.Expr right = ((Tree.ACaseExpr)aCaseExpr).right;
+
+            // rule 2
+            left.accept(this);
+            right.accept(this);
+            if(caseType.equal(BaseType.NULL))
+                caseType = left.type;
+            if(!(left.type.equal(caseType))) {
+                issueError(new IncompatCaseError(left.getLocation(), left.type.toString(), caseType.toString()));
+                returnType = BaseType.ERROR;
+            }
+
+            // rule 2
+            Object leftValue = ((Tree.Literal)left).value;
+            if(leftSet.contains(leftValue)) {
+                issueError(new ConditionNotUniqueError(aCaseExpr.getLocation()));
+                returnType = BaseType.ERROR;
+            } else {
+                leftSet.add(leftValue);
+            }
+
+            // rule 3
+            if(!(right.type.equal(defaultType))) {
+                issueError(new DifferentTypeError(aCaseExpr.getLocation(), right.type.toString(), defaultType.toString()));
+                returnType = BaseType.ERROR;
+            }
+        }
+        caseExpr.type = returnType;
+    }
+
+    @Override
+    public void visitDefaultExpr(Tree.DefaultExpr defaultExpr) {
+	    defaultExpr.expr.accept(this);
+	    defaultExpr.type = defaultExpr.expr.type;
+    }
 }

@@ -5,13 +5,13 @@ import decaf.Location;
  * example：incompatible operand: - int[]<br>
  * PA2
  */
-public class IncompatCaseError extends DecafError {
+public class DifferentTypeError extends DecafError {
 
     private String givenType;
 
     private String expectedType;
 
-    public IncompatCaseError(Location location, String givenType, String expectedType) {
+    public DifferentTypeError(Location location, String givenType, String expectedType) {
         super(location);
         this.givenType = givenType;
         this.expectedType = expectedType;
@@ -19,7 +19,7 @@ public class IncompatCaseError extends DecafError {
 
     @Override
     protected String getErrMsg() {
-        return "incompatible case expr: " + givenType + " given, but " + expectedType + " expected";
+        return "type: " + givenType + " is different with other expr's type " + expectedType;
     }
 
 }
