@@ -732,4 +732,21 @@ public class TypeCheck extends Tree.Visitor {
 	    defaultExpr.expr.accept(this);
 	    defaultExpr.type = defaultExpr.expr.type;
     }
+
+    @Override
+    public void visitDo(Tree.Do doLoop) {
+        breaks.add(doLoop);
+        for (Tree branch : doLoop.branches) {
+            ((Tree.DoBranch)branch).sub.accept(this);
+        }
+        breaks.pop();
+    }
+
+    @Override
+    public void visitDoSub(Tree.DoSub doSub) {
+	    doSub.expr.accept(this);
+	    if (!doSub.expr.type.equal(BaseType.BOOL)) {
+	        issueError(new DoSubNotBoolError(doSub.getLocation(), doSub.expr.type.toString()));
+        }
+    }
 }
