@@ -143,8 +143,14 @@ public class TypeCheck extends Tree.Visitor {
 					callExpr.method, receiverType.toString()));
 			callExpr.type = BaseType.ERROR;
 		} else if (!f.isFunction()) {
-			issueError(new NotClassMethodError(callExpr.getLocation(),
-					callExpr.method, receiverType.toString()));
+		    if(callExpr.receiver.tag == Tree.SUPEREXPR) {
+                Class parent = ((ClassScope) table.lookForScope(Scope.Kind.CLASS)).getOwner().getParent();
+                issueError(new NotClassMethodError(callExpr.getLocation(),
+                        callExpr.method, parent.getType().toString()));
+            } else {
+                issueError(new NotClassMethodError(callExpr.getLocation(),
+                        callExpr.method, receiverType.toString()));
+            }
 			callExpr.type = BaseType.ERROR;
 		} else {
 			Function func = (Function) f;
@@ -210,6 +216,25 @@ public class TypeCheck extends Tree.Visitor {
 			callExpr.type = BaseType.ERROR;
 			return;
 		}
+		if (callExpr.receiver.tag == Tree.SUPEREXPR) {
+            Class parent = ((ClassScope) table.lookForScope(Scope.Kind.CLASS)).getOwner().getParent();
+            if (parent == null) {
+                issueError(new NoParentClassError(callExpr.getLocation(), callExpr.receiver.type.toString()));
+                callExpr.type = BaseType.ERROR;
+                return;
+            } else {
+                ClassScope cs = parent.getAssociatedScope();
+                Symbol v = cs.lookupVisible(callExpr.method);
+                if (v == null) {
+                    issueError(new FieldNotFoundError(callExpr.getLocation(),
+                            callExpr.method, parent.getType().toString()));
+                    callExpr.type = BaseType.ERROR;
+                }
+            }
+
+
+        }
+
 		if (callExpr.method.equals("length")) {
 			if (callExpr.receiver.type.isArrayType()) {
 				if (callExpr.actuals.size() > 0) {
@@ -288,6 +313,16 @@ public class TypeCheck extends Tree.Visitor {
 	}
 
 	@Override
+    public void visitSuperExpr(Tree.SuperExpr superExpr) {
+	    if (currentFunction.isStatik()) {
+            issueError(new SuperInStaticFuncError(superExpr.getLocation()));
+            superExpr.type = BaseType.ERROR;
+        } else {
+	        superExpr.type = ((ClassScope) table.lookForScope(Scope.Kind.CLASS)).getOwner().getType();
+        }
+    }
+
+	@Override
 	public void visitTypeTest(Tree.TypeTest instanceofExpr) {
 		instanceofExpr.instance.accept(this);
 		if (!instanceofExpr.instance.type.isClassType()) {
@@ -348,6 +383,8 @@ public class TypeCheck extends Tree.Visitor {
 					ident.lvKind = Tree.LValue.Kind.MEMBER_VAR;
 				}
 			} else {
+
+
 				ident.type = v.getType();
 				if (v.isClass()) {
 					if (ident.usedForRef) {
@@ -363,7 +400,13 @@ public class TypeCheck extends Tree.Visitor {
 		} else {
 			ident.owner.usedForRef = true;
 			ident.owner.accept(this);
+
 			if (!ident.owner.type.equal(BaseType.ERROR)) {
+                if (ident.owner.tag == Tree.SUPEREXPR) {
+                    issueError(new SuperMemberVarError(ident.getLocation()));
+                    ident.type = BaseType.ERROR;
+                    return;
+                }
 				if (ident.owner.isClass || !ident.owner.type.isClassType()) {
 					issueError(new NotClassFieldError(ident.getLocation(),
 							ident.name, ident.owner.type.toString()));
