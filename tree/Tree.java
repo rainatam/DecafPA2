@@ -9,6 +9,10 @@ package decaf.tree;
 import java.util.List;
 
 import decaf.*;
+import decaf.type.*;
+import decaf.scope.*;
+import decaf.symbol.*;
+import decaf.symbol.Class;
 import decaf.utils.IndentPrintWriter;
 import decaf.utils.MiscUtils;
 
@@ -95,9 +99,14 @@ public abstract class Tree {
     public static final int LABELLED = FORLOOP + 1;
 
     /**
+     * Switch statements, of type Switch.
+     */
+    public static final int SWITCH = LABELLED + 1;
+
+    /**
      * Synchronized statements, of type Synchonized.
      */
-    public static final int SYNCHRONIZED = LABELLED + 1;
+    public static final int SYNCHRONIZED = SWITCH + 1;
 
     /**
      * Try statements, of type Try.
@@ -293,6 +302,7 @@ public abstract class Tree {
     public static final int RE = POSTDEC + 1;
     public static final int IM = RE + 1;
     public static final int COMPCAST = IM + 1;
+
     /**
      * unary operator for null reference checks, only used internally.
      */
@@ -328,7 +338,7 @@ public abstract class Tree {
     public static final int READLINEEXPR = READINTEXPR + 1;
     public static final int PRINT = READLINEEXPR + 1;
     public static final int PRINTCOMP = PRINT + 1;
-    
+
     /**
      * Tags for Literal and TypeLiteral
      */
@@ -338,8 +348,8 @@ public abstract class Tree {
     public static final int STRING = BOOL + 1;
     public static final int COMPLEX = STRING + 1;
 
-
     public Location loc;
+    public Type type;
     public int tag;
 
     /**
@@ -356,6 +366,14 @@ public abstract class Tree {
 	}
 
     /**
+      * Set type field and return this tree.
+      */
+    public Tree setType(Type type) {
+        this.type = type;
+        return this;
+    }
+
+    /**
       * Visit this tree with a given visitor.
       */
     public void accept(Visitor v) {
@@ -367,6 +385,8 @@ public abstract class Tree {
     public static class TopLevel extends Tree {
 
 		public List<ClassDef> classes;
+		public Class main;
+		public GlobalScope globalScope;
 		
 		public TopLevel(List<ClassDef> classes, Location loc) {
 			super(TOPLEVEL, loc);
@@ -394,6 +414,7 @@ public abstract class Tree {
     	public String name;
     	public String parent;
     	public List<Tree> fields;
+    	public Class symbol;
 
         public ClassDef(String name, String parent, List<Tree> fields,
     			Location loc) {
@@ -427,6 +448,7 @@ public abstract class Tree {
     	public TypeLiteral returnType;
     	public List<VarDef> formals;
     	public Block body;
+    	public Function symbol;
     	
         public MethodDef(boolean statik, String name, TypeLiteral returnType,
         		List<VarDef> formals, Block body, Location loc) {
@@ -466,6 +488,7 @@ public abstract class Tree {
     	
     	public String name;
     	public TypeLiteral type;
+    	public Variable symbol;
 
         public VarDef(String name, TypeLiteral type, Location loc) {
             super(VARDEF, loc);
@@ -509,7 +532,8 @@ public abstract class Tree {
     public static class Block extends Tree {
 
     	public List<Tree> block;
- 
+    	public LocalScope associatedScope;
+
         public Block(List<Tree> block, Location loc) {
             super(BLOCK, loc);
     		this.block = block;
@@ -693,7 +717,7 @@ public abstract class Tree {
     }
 
     /**
-      * A print statement.
+      * A return statement.
       */
     public static class Print extends Tree {
 
@@ -773,86 +797,9 @@ public abstract class Tree {
     	}
     }
 
-    public static class DoBranch extends Tree {
-        public Tree sub;
-
-        public DoBranch(Tree sub, Location loc) {
-            super(DOBRANCH, loc);
-            this.sub = sub;
-        }
-
-        @Override
-        public void accept(Visitor visitor) {
-            visitor.visitDoBranch(this);
-        }
-
-        @Override
-        public void printTo(IndentPrintWriter pw) {
-            sub.printTo(pw);
-        }
-    }
-
-    public static class DoSub extends Tree {
-        public Expr expr;
-        public Tree stmt;
-
-        public DoSub(Expr expr, Tree stmt, Location loc) {
-            super(DOSUB, loc);
-            this.expr = expr;
-            this.stmt = stmt;
-        }
-
-        @Override
-        public void accept(Visitor visitor) {
-            visitor.visitDoSub(this);
-        }
-
-        @Override
-        public void printTo(IndentPrintWriter pw) {
-            pw.println("branch");
-            pw.incIndent();
-            expr.printTo(pw);
-            stmt.printTo(pw);
-            pw.decIndent();
-        }
-    }
-
-    public static class Do extends Tree {
-
-        public List<Tree> branches;
-        public Tree sub;
-
-        public Do(List<Tree> branches, Tree sub, Location loc) {
-            super(DO, loc);
-            this.branches = branches;
-            this.sub = sub;
-        }
-
-        @Override
-        public void accept(Visitor v) {
-            v.visitDo(this);
-        }
-
-        @Override
-        public void printTo(IndentPrintWriter pw) {
-            pw.println("do");
-            pw.incIndent();
-            pw.println("branches");
-            pw.incIndent();
-            for (Tree branch : branches) {
-                //pw.println("branch");
-                branch.printTo(pw);
-            }
-            sub.printTo(pw);
-            pw.decIndent();
-            pw.decIndent();
-        }
-    }
-
-
-
     public abstract static class Expr extends Tree {
 
+    	public Type type;
     	public boolean isClass;
     	public boolean usedForRef;
     	
@@ -869,6 +816,8 @@ public abstract class Tree {
     	public Expr receiver;
     	public String method;
     	public List<Expr> actuals;
+    	public Function symbol;
+    	public boolean isArrayLength;
 
         public Apply(Expr receiver, String method, List<Expr> actuals,
     			Location loc) {
@@ -906,6 +855,7 @@ public abstract class Tree {
     public static class NewClass extends Expr {
 
     	public String className;
+    	public Class symbol;
 
         public NewClass(String className, Location loc) {
             super(NEWCLASS, loc);
@@ -1121,6 +1071,8 @@ public abstract class Tree {
 
     	public List<Expr> actuals;
 
+    	public Function symbol;
+
     	public boolean isArrayLength;
 
     	public CallExpr(Expr receiver, String method, List<Expr> actuals,
@@ -1211,6 +1163,7 @@ public abstract class Tree {
 
     	public String className;
     	public Expr expr;
+    	public Class symbol;
 
         public TypeCast(String className, Expr expr, Location loc) {
             super(TYPECAST, loc);
@@ -1240,6 +1193,7 @@ public abstract class Tree {
     	
     	public Expr instance;
     	public String className;
+    	public Class symbol;
 
         public TypeTest(Expr instance, String className, Location loc) {
             super(TYPETEST, loc);
@@ -1259,6 +1213,214 @@ public abstract class Tree {
     		instance.printTo(pw);
     		pw.println(className);
     		pw.decIndent();
+    	}
+    }
+
+    /**
+      * An array selection
+      */
+    public static class Indexed extends LValue {
+
+    	public Expr array;
+    	public Expr index;
+
+        public Indexed(Expr array, Expr index, Location loc) {
+            super(INDEXED, loc);
+    		this.array = array;
+    		this.index = index;
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitIndexed(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		pw.println("arrref");
+    		pw.incIndent();
+    		array.printTo(pw);
+    		index.printTo(pw);
+    		pw.decIndent();
+    	}
+    }
+
+    /**
+      * An identifier
+      */
+    public static class Ident extends LValue {
+
+    	public Expr owner;
+    	public String name;
+    	public Variable symbol;
+    	public boolean isDefined;
+
+        public Ident(Expr owner, String name, Location loc) {
+            super(IDENT, loc);
+    		this.owner = owner;
+    		this.name = name;
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitIdent(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		pw.println("varref " + name);
+    		if (owner != null) {
+    			pw.incIndent();
+    			owner.printTo(pw);
+    			pw.decIndent();
+    		}
+    	}
+    }
+
+    /**
+      * A constant value given literally.
+      * @param value value representation
+      */
+    public static class Literal extends Expr {
+
+    	public int typeTag;
+        public Object value;
+
+        public Literal(int typeTag, Object value, Location loc) {
+            super(LITERAL, loc);
+            this.typeTag = typeTag;
+            this.value = value;
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitLiteral(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		switch (typeTag) {
+                case INT:
+                    pw.println("intconst " + value);
+                    break;
+                case BOOL:
+                    pw.println("boolconst " + value);
+                    break;
+                case COMPLEX:
+                    pw.println("imgconst " + value);
+                    break;
+                default:
+                    pw.println("stringconst " + MiscUtils.quote((String)value));
+            }
+    	}
+    }
+    public static class Null extends Expr {
+
+        public Null(Location loc) {
+            super(NULL, loc);
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitNull(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+  			pw.println("null");
+    	}
+    }
+
+    public static abstract class TypeLiteral extends Tree {
+    	
+    	public Type type;
+    	
+    	public TypeLiteral(int tag, Location loc){
+    		super(tag, loc);
+    	}
+    }
+    
+    /**
+      * Identifies a basic type.
+      * @param tag the basic type id
+      * @see SemanticConstants
+      */
+    public static class TypeIdent extends TypeLiteral {
+    	
+        public int typeTag;
+
+        public TypeIdent(int typeTag, Location loc) {
+            super(TYPEIDENT, loc);
+            this.typeTag = typeTag;
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitTypeIdent(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		switch (typeTag){
+                case INT:
+                    pw.print("inttype");
+                    break;
+                case BOOL:
+                    pw.print("booltype");
+                    break;
+                case COMPLEX:
+                    pw.print("comptype");
+                    break;
+                case VOID:
+                    pw.print("voidtype");
+                    break;
+                default:
+                    pw.print("stringtype");
+    		}
+    	}
+    }
+
+    public static class TypeClass extends TypeLiteral {
+
+    	public String name;
+
+    	public TypeClass(String name, Location loc) {
+    		super(TYPECLASS, loc);
+    		this.name = name;
+    	}
+
+    	@Override
+    	public void accept(Visitor visitor) {
+    		visitor.visitTypeClass(this);
+    	}
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		pw.print("classtype " + name);
+    	}
+    }
+
+    /**
+      * An array type, A[]
+      */
+    public static class TypeArray extends TypeLiteral {
+
+    	public TypeLiteral elementType;
+
+        public TypeArray(TypeLiteral elementType, Location loc) {
+            super(TYPEARRAY, loc);
+    		this.elementType = elementType;
+        }
+
+    	@Override
+        public void accept(Visitor v) {
+            v.visitTypeArray(this);
+        }
+
+    	@Override
+    	public void printTo(IndentPrintWriter pw) {
+    		pw.print("arrtype ");
+    		elementType.printTo(pw);
     	}
     }
 
@@ -1424,209 +1586,81 @@ public abstract class Tree {
         }
     }
 
-    /**
-      * An array selection
-      */
-    public static class Indexed extends LValue {
 
-    	public Expr array;
-    	public Expr index;
+    public static class DoBranch extends Tree {
+        public Tree sub;
 
-        public Indexed(Expr array, Expr index, Location loc) {
-            super(INDEXED, loc);
-    		this.array = array;
-    		this.index = index;
+        public DoBranch(Tree sub, Location loc) {
+            super(DOBRANCH, loc);
+            this.sub = sub;
         }
 
-    	@Override
+        @Override
+        public void accept(Visitor visitor) {
+            visitor.visitDoBranch(this);
+        }
+
+        @Override
+        public void printTo(IndentPrintWriter pw) {
+            sub.printTo(pw);
+        }
+    }
+
+    public static class DoSub extends Tree {
+        public Expr expr;
+        public Tree stmt;
+
+        public DoSub(Expr expr, Tree stmt, Location loc) {
+            super(DOSUB, loc);
+            this.expr = expr;
+            this.stmt = stmt;
+        }
+
+        @Override
+        public void accept(Visitor visitor) {
+            visitor.visitDoSub(this);
+        }
+
+        @Override
+        public void printTo(IndentPrintWriter pw) {
+            pw.println("branch");
+            pw.incIndent();
+            expr.printTo(pw);
+            stmt.printTo(pw);
+            pw.decIndent();
+        }
+    }
+
+    public static class Do extends Tree {
+
+        public List<Tree> branches;
+        public Tree sub;
+
+        public Do(List<Tree> branches, Tree sub, Location loc) {
+            super(DO, loc);
+            this.branches = branches;
+            this.sub = sub;
+        }
+
+        @Override
         public void accept(Visitor v) {
-            v.visitIndexed(this);
+            v.visitDo(this);
         }
 
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		pw.println("arrref");
-    		pw.incIndent();
-    		array.printTo(pw);
-    		index.printTo(pw);
-    		pw.decIndent();
-    	}
-    }
-
-    /**
-      * An identifier
-      */
-    public static class Ident extends LValue {
-
-    	public Expr owner;
-    	public String name;
-    	public boolean isDefined;
-
-        public Ident(Expr owner, String name, Location loc) {
-            super(IDENT, loc);
-    		this.owner = owner;
-    		this.name = name;
+        @Override
+        public void printTo(IndentPrintWriter pw) {
+            pw.println("do");
+            pw.incIndent();
+            pw.println("branches");
+            pw.incIndent();
+            for (Tree branch : branches) {
+                //pw.println("branch");
+                branch.printTo(pw);
+            }
+            sub.printTo(pw);
+            pw.decIndent();
+            pw.decIndent();
         }
-
-    	@Override
-        public void accept(Visitor v) {
-            v.visitIdent(this);
-        }
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		pw.println("varref " + name);
-    		if (owner != null) {
-    			pw.incIndent();
-    			owner.printTo(pw);
-    			pw.decIndent();
-    		}
-    	}
-    }
-
-    /**
-      * A constant value given literally.
-      * @param value value representation
-      */
-    public static class Literal extends Expr {
-
-    	public int typeTag;
-        public Object value;
-
-        public Literal(int typeTag, Object value, Location loc) {
-            super(LITERAL, loc);
-            this.typeTag = typeTag;
-            this.value = value;
-        }
-
-    	@Override
-        public void accept(Visitor v) {
-            v.visitLiteral(this);
-        }
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		switch (typeTag) {
-    		case INT:
-    			pw.println("intconst " + value);
-    			break;
-    		case BOOL:
-    			pw.println("boolconst " + value);
-    			break;
-    		case COMPLEX:
-                pw.println("imgconst " + value);
-                break;
-    		default:
-    			pw.println("stringconst " + MiscUtils.quote((String)value));
-    		}
-    	}
-    }
-    public static class Null extends Expr {
-
-        public Null(Location loc) {
-            super(NULL, loc);
-        }
-
-    	@Override
-        public void accept(Visitor v) {
-            v.visitNull(this);
-        }
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-  			pw.println("null");
-    	}
-    }
-
-    public static abstract class TypeLiteral extends Tree {
-    	
-    	public TypeLiteral(int tag, Location loc){
-    		super(tag, loc);
-    	}
-    }
-    
-    /**
-      * Identifies a basic type.
-      * @param tag the basic type id
-      * @see SemanticConstants
-      */
-    public static class TypeIdent extends TypeLiteral {
-    	
-        public int typeTag;
-
-        public TypeIdent(int typeTag, Location loc) {
-            super(TYPEIDENT, loc);
-            this.typeTag = typeTag;
-        }
-
-    	@Override
-        public void accept(Visitor v) {
-            v.visitTypeIdent(this);
-        }
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		switch (typeTag){
-    		case INT:
-    			pw.print("inttype");
-    			break;
-    		case BOOL:
-    			pw.print("booltype");
-    			break;
-            case COMPLEX:
-                pw.print("comptype");
-                break;
-    		case VOID:
-    			pw.print("voidtype");
-    			break;
-    		default:
-    			pw.print("stringtype");
-    		}
-    	}
-    }
-
-    public static class TypeClass extends TypeLiteral {
-
-    	public String name;
-
-    	public TypeClass(String name, Location loc) {
-    		super(TYPECLASS, loc);
-    		this.name = name;
-    	}
-
-    	@Override
-    	public void accept(Visitor visitor) {
-    		visitor.visitTypeClass(this);
-    	}
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		pw.print("classtype " + name);
-    	}
-    }
-
-    /**
-      * An array type, A[]
-      */
-    public static class TypeArray extends TypeLiteral {
-
-    	public TypeLiteral elementType;
-
-        public TypeArray(TypeLiteral elementType, Location loc) {
-            super(TYPEARRAY, loc);
-    		this.elementType = elementType;
-        }
-
-    	@Override
-        public void accept(Visitor v) {
-            v.visitTypeArray(this);
-        }
-
-    	@Override
-    	public void printTo(IndentPrintWriter pw) {
-    		pw.print("arrtype ");
-    		elementType.printTo(pw);
-    	}
     }
 
 
@@ -1687,18 +1721,6 @@ public abstract class Tree {
             visitTree(that);
         }
 
-        public void visitDoBranch(DoBranch that) {
-            visitTree(that);
-        }
-
-        public void visitDoSub(DoSub that) {
-            visitTree(that);
-        }
-
-        public void visitDo(Do that) {
-            visitTree(that);
-        }
-
         public void visitApply(Apply that) {
             visitTree(that);
         }
@@ -1739,9 +1761,7 @@ public abstract class Tree {
             visitTree(that);
         }
 
-        public void visitPrintComp(PrintComp that) {
-            visitTree(that);
-        }
+        public void visitPrintComp(PrintComp that) { visitTree(that); }
 
         public void visitThisExpr(ThisExpr that) {
             visitTree(that);
@@ -1758,18 +1778,6 @@ public abstract class Tree {
         public void visitTypeTest(TypeTest that) {
             visitTree(that);
         }
-
-        public void visitACaseExpr(ACaseExpr that) { visitTree(that); }
-
-        public void visitDefaultExpr(DefaultExpr that) { visitTree(that); }
-
-        public void visitCase(Case that) { visitTree(that); }
-
-        public void visitSuperExpr(SuperExpr that) { visitTree(that); }
-
-        public void visitDCopyExpr(DCopyExpr that) { visitTree(that); }
-
-        public void visitSCopyExpr(SCopyExpr that) { visitTree(that); }
 
         public void visitIndexed(Indexed that) {
             visitTree(that);
@@ -1796,6 +1804,30 @@ public abstract class Tree {
         }
 
         public void visitTypeArray(TypeArray that) {
+            visitTree(that);
+        }
+
+        public void visitACaseExpr(ACaseExpr that) { visitTree(that); }
+
+        public void visitDefaultExpr(DefaultExpr that) { visitTree(that); }
+
+        public void visitCase(Case that) { visitTree(that); }
+
+        public void visitSuperExpr(SuperExpr that) { visitTree(that); }
+
+        public void visitDCopyExpr(DCopyExpr that) { visitTree(that); }
+
+        public void visitSCopyExpr(SCopyExpr that) { visitTree(that); }
+
+        public void visitDoBranch(DoBranch that) {
+            visitTree(that);
+        }
+
+        public void visitDoSub(DoSub that) {
+            visitTree(that);
+        }
+
+        public void visitDo(Do that) {
             visitTree(that);
         }
 

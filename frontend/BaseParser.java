@@ -35,6 +35,7 @@ public abstract class BaseParser {
 			yyerror("lexer error: " + e.getMessage());
 		}
 
+
 		return token;
 	}
 
