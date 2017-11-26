@@ -58,6 +58,7 @@ public class SemValue {
 
 	public LValue lvalue;
 
+
 	/**
 	 * 创建一个关键字的语义值
 	 * 
@@ -158,6 +159,9 @@ public class SemValue {
 		case Parser.PRINT:
 			msg = "keyword  : Print";
 			break;
+		case Parser.PRINTCOMP:
+			msg = "keyword  : PrintComp";
+			break;
 		case Parser.READ_INTEGER:
 			msg = "keyword  : ReadInteger";
 			break;
@@ -182,6 +186,7 @@ public class SemValue {
 		case Parser.STATIC:
 			msg = "keyword : static";
 			break;
+
 
 		// 常量
 		case Parser.LITERAL:
@@ -219,6 +224,9 @@ public class SemValue {
 		case Parser.OR:
 			msg = "operator : ||";
 			break;
+        case Parser.DO_SEP:
+            msg = "operator : |||";
+            break;
 		default:
 			msg = "operator : " + (char) code;
 			break;
