@@ -164,17 +164,20 @@ public class BuildSym extends Tree.Visitor {
 	@Override
 	public void visitTypeIdent(Tree.TypeIdent type) {
 		switch (type.typeTag) {
-		case Tree.VOID:
-			type.type = BaseType.VOID;
-			break;
-		case Tree.INT:
-			type.type = BaseType.INT;
-			break;
-		case Tree.BOOL:
-			type.type = BaseType.BOOL;
-			break;
-		default:
-			type.type = BaseType.STRING;
+			case Tree.VOID:
+				type.type = BaseType.VOID;
+				break;
+			case Tree.INT:
+				type.type = BaseType.INT;
+				break;
+			case Tree.BOOL:
+				type.type = BaseType.BOOL;
+				break;
+			case Tree.COMPLEX:
+				type.type = BaseType.COMPLEX;
+				break;
+			default:
+				type.type = BaseType.STRING;
 		}
 	}
 
