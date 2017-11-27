@@ -322,6 +322,28 @@ public class TypeCheck extends Tree.Visitor {
         }
     }
 
+    @Override
+    public void visitSCopyExpr(Tree.SCopyExpr scopyExpr) {
+	    scopyExpr.expr.accept(this);
+	    if(!scopyExpr.expr.type.isClassType()) {
+            issueError(new CopyTypeError(scopyExpr.getLocation(), scopyExpr.expr.type.toString()));
+	        scopyExpr.type = BaseType.ERROR;
+        } else {
+	        scopyExpr.type = scopyExpr.expr.type;
+        }
+    }
+
+    @Override
+    public void visitDCopyExpr(Tree.DCopyExpr scopyExpr) {
+        scopyExpr.expr.accept(this);
+        if(!scopyExpr.expr.type.isClassType()) {
+            issueError(new CopyTypeError(scopyExpr.getLocation(), scopyExpr.expr.type.toString()));
+            scopyExpr.type = BaseType.ERROR;
+        } else {
+            scopyExpr.type = scopyExpr.expr.type;
+        }
+    }
+
 	@Override
 	public void visitTypeTest(Tree.TypeTest instanceofExpr) {
 		instanceofExpr.instance.accept(this);
@@ -482,6 +504,15 @@ public class TypeCheck extends Tree.Visitor {
 		assign.left.accept(this);
 		assign.expr.accept(this);
 		//System.out.println(assign.left.getLocation());
+        if (!assign.left.type.equal(BaseType.ERROR) && !assign.expr.type.equal(BaseType.ERROR) && (assign.expr.tag == Tree.SCOPYEXPR || assign.expr.tag == Tree.DCOPYEXPR)) {
+            //System.out.println(assign.getLocation());
+            //System.out.println(assign.left.type.toString());
+            //System.out.println(assign.expr.type.toString());
+            //if(!assign.left.type.compatible(assign.expr.type))
+            if (!assign.left.type.equal(assign.expr.type))
+                issueError(new CopySrcDstNotSameError(assign.getLocation(), assign.expr.type.toString(), assign.left.type.toString()));
+            return;
+        }
 		if (!assign.left.type.equal(BaseType.ERROR)
 				&& (assign.left.type.isFuncType() || !assign.expr.type
 						.compatible(assign.left.type))) {
