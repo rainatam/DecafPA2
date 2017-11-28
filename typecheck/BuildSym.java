@@ -242,6 +242,14 @@ public class BuildSym extends Tree.Visitor {
 		}
 	}
 
+	@Override
+    public void visitDoSub(Tree.DoSub doSub) {
+	    if (doSub.stmt != null) {
+	        doSub.stmt.accept(this);
+        }
+
+    }
+
 	private int calcOrder(Class c) {
 		if (c == null) {
 			return -1;
